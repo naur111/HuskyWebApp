@@ -34,6 +34,7 @@ export class WorldGenerator {
       grass: 0, canopy: 0, sky: 0,
       stream: 0, stream2: 0,
       undergrowth: 0, wetland: 0, birds: 0,
+      ecosystem: 0,   // cumulative — rises 1/8 per animal caught
     };
     this.targets = { ...this.growth };
 
@@ -51,6 +52,16 @@ export class WorldGenerator {
     this._sunLight     = null;
     this._particles    = null;   // sparkle system for stream2
 
+    // Ecosystem growth objects
+    this._flowers    = [];
+    this._bushes     = [];
+    this._lilyPads   = [];
+    this._mushrooms  = [];
+    this._puddles    = [];
+    this._fireflyPts = null;
+    this._fireflyVel = [];
+    this._bursts     = [];      // transient discovery-burst particles
+
     this.collidables   = [];     // Box3 array for player collision
     this.elapsed       = 0;
 
@@ -64,6 +75,42 @@ export class WorldGenerator {
     if (effectName in this.targets) {
       this.targets[effectName] = 1;
     }
+  }
+
+  /** Advance ecosystem by 1/8 per animal caught (call with discoveredCount / 8) */
+  setEcosystem(fraction) {
+    this.targets.ecosystem = Math.min(1, Math.max(0, fraction));
+  }
+
+  /** Spawn a confetti burst at world position (x, z) with a hex colour string */
+  spawnBurst(x, z, hexColor) {
+    const count = 48;
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const vels = [];
+    for (let i = 0; i < count; i++) {
+      positions[i * 3]     = x;
+      positions[i * 3 + 1] = 0.6;
+      positions[i * 3 + 2] = z;
+      const angle = (i / count) * Math.PI * 2 + rand(-0.15, 0.15);
+      const speed = 0.04 + Math.random() * 0.09;
+      vels.push({
+        vx: Math.cos(angle) * speed,
+        vy: 0.07 + Math.random() * 0.11,
+        vz: Math.sin(angle) * speed,
+      });
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: new THREE.Color(hexColor || '#88ff44'),
+      size: 0.22,
+      transparent: true,
+      opacity: 1.0,
+      sizeAttenuation: true,
+    });
+    const pts = new THREE.Points(geo, mat);
+    this.scene.add(pts);
+    this._bursts.push({ pts, vels, life: 1.0 });
   }
 
   /** Call every frame with delta time */
@@ -88,6 +135,13 @@ export class WorldGenerator {
     this._updateBirds();
     this._updateFerns();
     this._updateParticles();
+    this._updateFlowers();
+    this._updateBushes();
+    this._updateLilyPads();
+    this._updateMushrooms();
+    this._updatePuddles();
+    this._updateFireflies();
+    this._updateBursts(dt);
   }
 
   // ── build ─────────────────────────────────────────────────
@@ -103,6 +157,12 @@ export class WorldGenerator {
     this._buildParticles();
     this.scene.add(this._birdGroup);
     this._buildBirds();
+    this._buildFlowers();
+    this._buildBushes();
+    this._buildLilyPads();
+    this._buildMushrooms();
+    this._buildPuddles();
+    this._buildFireflies();
   }
 
   // ── lighting ──────────────────────────────────────────────
@@ -538,6 +598,284 @@ export class WorldGenerator {
       pos.setXYZ(i, pos.getX(i) + v.vx, y, pos.getZ(i));
     });
     pos.needsUpdate = true;
+  }
+
+  // ── flowers ───────────────────────────────────────────────
+
+  _buildFlowers() {
+    const palette = [
+      0xff3366, 0xff8811, 0xffdd00, 0xff55bb,
+      0xbb44ff, 0xffffff, 0x55ffcc, 0xff8888,
+      0xffaa33, 0xee55ff, 0x44ffaa, 0xffcc44,
+    ];
+    for (let i = 0; i < 120; i++) {
+      const stemH = rand(0.18, 0.44);
+      const headR = 0.05 + rand(0, 0.04);
+
+      const stemGeo = new THREE.CylinderGeometry(0.012, 0.02, stemH, 4);
+      const stemMat = new THREE.MeshLambertMaterial({
+        color: 0x2d6b1a, transparent: true, opacity: 0,
+      });
+      const stem = new THREE.Mesh(stemGeo, stemMat);
+      stem.position.y = stemH / 2;
+
+      const headGeo = new THREE.SphereGeometry(headR, 6, 4);
+      const headMat = new THREE.MeshLambertMaterial({
+        color: palette[i % palette.length], transparent: true, opacity: 0,
+      });
+      const head = new THREE.Mesh(headGeo, headMat);
+      head.position.y = stemH + headR;
+
+      const centerGeo = new THREE.SphereGeometry(0.02, 4, 3);
+      const centerMat = new THREE.MeshLambertMaterial({
+        color: 0xffee44, transparent: true, opacity: 0,
+      });
+      const center = new THREE.Mesh(centerGeo, centerMat);
+      center.position.y = stemH + headR * 1.35;
+
+      const group = new THREE.Group();
+      group.position.set(sr(i * 13.7) * 64 - 32, 0, sr(i * 6.9) * 64 - 32);
+      group.rotation.y = sr(i * 2.3) * Math.PI * 2;
+      group.add(stem, head, center);
+      this.scene.add(group);
+
+      this._flowers.push({ stem, head, center, delay: i / 120 });
+    }
+  }
+
+  _updateFlowers() {
+    const g = this._ease(this.growth.ecosystem);
+    this._flowers.forEach(({ stem, head, center, delay }) => {
+      const lg = Math.max(0, Math.min(1, g - delay));
+      stem.material.opacity   = lg * 0.9;
+      head.material.opacity   = lg * 0.95;
+      center.material.opacity = lg * 0.95;
+    });
+  }
+
+  // ── bushes ────────────────────────────────────────────────
+
+  _buildBushes() {
+    for (let i = 0; i < 30; i++) {
+      const group = new THREE.Group();
+      group.position.set(sr(i * 17.3) * 60 - 30, 0, sr(i * 11.9) * 60 - 30);
+      const count = 2 + Math.floor(sr(i * 5.5) * 3);
+      const meshes = [];
+      for (let s = 0; s < count; s++) {
+        const r = 0.28 + sr((i * 7 + s) * 3.3) * 0.45;
+        const geo = new THREE.SphereGeometry(r, 6, 5);
+        const hue = 0.27 + sr((i + s) * 2.1) * 0.05;
+        const mat = new THREE.MeshLambertMaterial({
+          color: new THREE.Color().setHSL(hue, 0.5, 0.13),
+          transparent: true, opacity: 0,
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(
+          sr((i * 9 + s) * 2.7) * 0.5 - 0.25,
+          r * 0.75,
+          sr((i * 11 + s) * 1.9) * 0.5 - 0.25,
+        );
+        group.add(mesh);
+        meshes.push(mesh);
+      }
+      this.scene.add(group);
+      this._bushes.push({ meshes, delay: i / 30 });
+    }
+  }
+
+  _updateBushes() {
+    const g = this._ease(this.growth.ecosystem);
+    this._bushes.forEach(({ meshes, delay }) => {
+      const lg = Math.max(0, Math.min(1, g - delay));
+      meshes.forEach(m => { m.material.opacity = lg * 0.88; });
+    });
+  }
+
+  // ── lily pads ─────────────────────────────────────────────
+
+  _buildLilyPads() {
+    const cx = -13, cz = 10;  // wetland centre
+    for (let i = 0; i < 10; i++) {
+      const r = 0.22 + rand(0, 0.22);
+      // Partial circle with a small notch
+      const geo = new THREE.CircleGeometry(r, 10, 0.15, Math.PI * 1.85);
+      const mat = new THREE.MeshLambertMaterial({
+        color: new THREE.Color().setHSL(0.30 + rand(0, 0.04), 0.55, 0.18),
+        transparent: true, opacity: 0, side: THREE.DoubleSide,
+      });
+      const pad = new THREE.Mesh(geo, mat);
+      const angle = (i / 10) * Math.PI * 2;
+      const dist  = rand(0.4, 3.1);
+      pad.rotation.x = -Math.PI / 2;
+      pad.rotation.z = rand(0, Math.PI * 2);
+      pad.position.set(cx + Math.cos(angle) * dist, 0.05, cz + Math.sin(angle) * dist);
+      this.scene.add(pad);
+      this._lilyPads.push({ mesh: pad, delay: i / 10 });
+    }
+  }
+
+  _updateLilyPads() {
+    const wg = this._ease(this.growth.wetland);
+    this._lilyPads.forEach(({ mesh, delay }, i) => {
+      const lg = Math.max(0, Math.min(1, wg - delay * 0.8));
+      mesh.material.opacity = lg * 0.82;
+      mesh.position.y = 0.05 + Math.sin(this.elapsed * 0.4 + i * 1.2) * 0.012;
+    });
+  }
+
+  // ── mushrooms ─────────────────────────────────────────────
+
+  _buildMushrooms() {
+    const capColors = [0xcc4422, 0xdd7733, 0xbb3311, 0xee9944, 0xddbb66, 0xffd4aa];
+    for (let i = 0; i < 35; i++) {
+      const stemH = rand(0.08, 0.22);
+      const capR  = rand(0.07, 0.17);
+
+      const stemGeo = new THREE.CylinderGeometry(0.018, 0.026, stemH, 5);
+      const stemMat = new THREE.MeshLambertMaterial({
+        color: 0xd4bca0, transparent: true, opacity: 0,
+      });
+      const stem = new THREE.Mesh(stemGeo, stemMat);
+      stem.position.y = stemH / 2;
+
+      // Hemisphere cap
+      const capGeo = new THREE.SphereGeometry(capR, 7, 4, 0, Math.PI * 2, 0, Math.PI * 0.55);
+      const capMat = new THREE.MeshLambertMaterial({
+        color: capColors[i % capColors.length], transparent: true, opacity: 0,
+      });
+      const cap = new THREE.Mesh(capGeo, capMat);
+      cap.position.y = stemH + capR * 0.12;
+
+      const group = new THREE.Group();
+      group.position.set(sr(i * 15.3) * 58 - 29, 0, sr(i * 8.1) * 58 - 29);
+      group.rotation.y = sr(i * 3.7) * Math.PI * 2;
+      group.add(stem, cap);
+      this.scene.add(group);
+
+      this._mushrooms.push({ stem, cap, delay: i / 35 });
+    }
+  }
+
+  _updateMushrooms() {
+    const ug = this._ease(this.growth.undergrowth);
+    const eg = this._ease(this.growth.ecosystem) * 0.55;
+    const g  = Math.max(ug, eg);
+    this._mushrooms.forEach(({ stem, cap, delay }) => {
+      const lg = Math.max(0, Math.min(1, g - delay));
+      stem.material.opacity = lg * 0.85;
+      cap.material.opacity  = lg * 0.9;
+    });
+  }
+
+  // ── puddles ───────────────────────────────────────────────
+
+  _buildPuddles() {
+    const spots = [
+      [ 5,  8], [-8, -5], [12,  2], [-3, 14],
+      [ 8, -10], [-15, -10], [0, -16],
+    ];
+    spots.forEach(([x, z], i) => {
+      const r = 0.45 + rand(0, 1.1);
+      const geo = new THREE.CircleGeometry(r, 12);
+      const mat = new THREE.MeshLambertMaterial({
+        color: 0x2266bb, transparent: true, opacity: 0,
+      });
+      const puddle = new THREE.Mesh(geo, mat);
+      puddle.rotation.x = -Math.PI / 2;
+      puddle.position.set(x, 0.02, z);
+      this.scene.add(puddle);
+      this._puddles.push({ mesh: puddle, delay: i / spots.length });
+    });
+  }
+
+  _updatePuddles() {
+    const sg = Math.max(
+      this._ease(this.growth.stream),
+      this._ease(this.growth.wetland),
+    );
+    const eg = this._ease(this.growth.ecosystem);
+    const g  = Math.max(sg * 0.8, eg * 0.6);
+    this._puddles.forEach(({ mesh, delay }, i) => {
+      const lg = Math.max(0, Math.min(1, g - delay));
+      mesh.material.opacity = lg * (0.45 + 0.1 * Math.sin(this.elapsed * 0.9 + i * 1.7));
+      mesh.material.color.setHSL(
+        0.57 + Math.sin(this.elapsed * 0.3 + i) * 0.02,
+        0.55,
+        0.20 + lg * 0.1,
+      );
+    });
+  }
+
+  // ── fireflies ─────────────────────────────────────────────
+
+  _buildFireflies() {
+    const count = 60;
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const vels = [];
+    for (let i = 0; i < count; i++) {
+      positions[i * 3]     = rand(-16, 16);
+      positions[i * 3 + 1] = rand(0.5, 3.5);
+      positions[i * 3 + 2] = rand(-16, 16);
+      vels.push({
+        phase: Math.random() * Math.PI * 2,
+        speed: rand(0.25, 0.75),
+        cx: rand(-14, 14),
+        cz: rand(-14, 14),
+      });
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    this._fireflyPts = new THREE.Points(geo, new THREE.PointsMaterial({
+      color: 0xccff66, size: 0.18, transparent: true, opacity: 0, sizeAttenuation: true,
+    }));
+    this._fireflyVel = vels;
+    this.scene.add(this._fireflyPts);
+  }
+
+  _updateFireflies() {
+    const g = this._ease(this.growth.ecosystem);
+    // Only visible once ecosystem is at least 40% grown
+    const vis = Math.max(0, (g - 0.4) / 0.6);
+    this._fireflyPts.material.opacity =
+      vis * 0.75 * (0.5 + 0.5 * Math.abs(Math.sin(this.elapsed * 1.8)));
+
+    if (vis < 0.01) return;
+    const pos = this._fireflyPts.geometry.attributes.position;
+    this._fireflyVel.forEach((v, i) => {
+      const a = this.elapsed * v.speed + v.phase;
+      pos.setXYZ(i,
+        v.cx + Math.sin(a) * 2.5,
+        1.2 + Math.sin(a * 0.5) * 0.8,
+        v.cz + Math.cos(a * 0.7) * 2.0,
+      );
+    });
+    pos.needsUpdate = true;
+  }
+
+  // ── discovery burst ───────────────────────────────────────
+
+  _updateBursts(dt) {
+    this._bursts = this._bursts.filter(b => {
+      b.life -= dt * 0.85;
+      if (b.life <= 0) {
+        this.scene.remove(b.pts);
+        b.pts.geometry.dispose();
+        b.pts.material.dispose();
+        return false;
+      }
+      b.pts.material.opacity = b.life;
+      const pos = b.pts.geometry.attributes.position;
+      b.vels.forEach((v, i) => {
+        v.vy -= dt * 0.18;  // gravity
+        pos.setXYZ(i,
+          pos.getX(i) + v.vx,
+          Math.max(0.05, pos.getY(i) + v.vy),
+          pos.getZ(i) + v.vz,
+        );
+      });
+      pos.needsUpdate = true;
+      return true;
+    });
   }
 
   // ── util ──────────────────────────────────────────────────

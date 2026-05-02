@@ -173,6 +173,8 @@ function discover(entry) {
 
   cards.markDiscovered(entry);
   world.trigger(entry.sp.worldEffect);
+  world.setEcosystem(discoveredIds.length / 8);
+  world.spawnBurst(entry.group.position.x, entry.group.position.z, entry.sp.cardColor);
   audio.play(entry.sp.soundFile);
 
   // Update HUD counter
