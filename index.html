@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Greenbelt Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,400&family=Cormorant+Garamond:ital,wght@1,400;1,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+
+  <!-- Three.js renders here -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- ── START SCREEN ─────────────────────────────── -->
+  <div id="start-screen">
+    <div class="start-inner">
+      <div class="start-leaf">🌿</div>
+      <h1>Greenbelt Explorer</h1>
+      <p class="start-sub">Discover the wild neighbours of Ontario's Greenbelt</p>
+      <div class="mode-row">
+        <button class="mode-btn" id="btn-explorer">
+          <span class="mode-icon">🦎</span>
+          <strong>Explorer Mode</strong>
+          <span>Roam freely. No time limit.</span>
+        </button>
+        <button class="mode-btn" id="btn-timed">
+          <span class="mode-icon">⏱️</span>
+          <strong>Timed Mode</strong>
+          <span>15 seconds. Find as many as you can.</span>
+        </button>
+      </div>
+      <p class="start-hint">WASD to move · Mouse to look · Click to capture cursor</p>
+    </div>
+  </div>
+
+  <!-- ── HUD (diegetic-first, minimal DOM) ────────── -->
+  <div id="hud" class="hidden">
+    <!-- Top bar -->
+    <div id="hud-top">
+      <span id="mode-pill"></span>
+      <button id="btn-restart">↩ Restart</button>
+    </div>
+
+    <!-- Timed mode: sun arc progress bar across the very top -->
+    <div id="sun-track" class="hidden">
+      <div id="sun-fill"></div>
+      <div id="sun-orb"></div>
+    </div>
+
+    <!-- Crosshair -->
+    <div id="crosshair"></div>
+
+    <!-- Proximity whisper — appears near bottom centre when a card is close -->
+    <div id="whisper" class="hidden">walk closer to discover</div>
+
+    <!-- Species found — bottom right, minimal -->
+    <div id="found-panel">
+      <div id="found-label">discovered</div>
+      <div id="found-count">0<span>/8</span></div>
+      <div id="found-names"></div>
+    </div>
+
+    <!-- Click-to-lock notice -->
+    <div id="lock-notice">click to explore</div>
+  </div>
+
+  <!-- ── DISCOVERY CARD ────────────────────────────── -->
+  <div id="disc-overlay" class="hidden">
+    <div id="disc-bg"></div>
+    <div id="disc-card">
+      <!-- Pixel art portrait rendered here -->
+      <canvas id="disc-art" width="420" height="240"></canvas>
+      <div id="disc-body">
+        <div id="disc-badge">✦ discovered</div>
+        <h2 id="disc-name"></h2>
+        <p id="disc-msg"></p>
+        <div id="disc-habitat"></div>
+        <button id="disc-close">continue exploring →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── END SCREEN (timed mode) ──────────────────── -->
+  <div id="end-screen" class="hidden">
+    <div class="end-inner">
+      <div class="end-leaf">🌿</div>
+      <h2 id="end-title"></h2>
+      <ul id="end-list"></ul>
+      <p id="end-empty" class="hidden">The Greenbelt is still waiting. Try again!</p>
+      <div class="end-btns">
+        <button id="btn-again">Play Again</button>
+        <button id="btn-home">Back to Home</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

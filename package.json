@@ -1,0 +1,16 @@
+{
+  "name": "greenbelt-explorer",
+  "version": "1.0.0",
+  "description": "Ontario Greenbelt 3D educational exploration game",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.163.0"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  }
+}
