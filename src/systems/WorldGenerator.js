@@ -197,28 +197,31 @@ export class WorldGenerator {
     const skyG = this._ease(g.sky);
     const canG = this._ease(g.canopy);
 
-    // Sky and background colour
+    // Sky and background colour — stay in warm green/gold tones, never slide into blue
     const skyCol = new THREE.Color().setHSL(
-      0.33 + skyG * 0.22,
-      0.25 + skyG * 0.2,
-      0.04 + skyG * 0.18
+      0.33 + skyG * 0.07,   // green → golden-green (max 0.40), not cyan
+      0.25 + skyG * 0.15,
+      0.04 + skyG * 0.28    // get visibly brighter
     );
     this.scene.background = skyCol;
-    this.scene.fog.color = new THREE.Color().setHSL(
-      0.3 + skyG * 0.1,
-      0.35 + skyG * 0.15,
-      0.07 + skyG * 0.12
-    );
 
-    // Ambient — warms with sky
+    // Fog thins as the sky opens; keep it in warm-green tones
+    this.scene.fog.color.setHSL(
+      0.30 + skyG * 0.05,   // stays green, not cyan
+      0.30 + skyG * 0.1,
+      0.12 + skyG * 0.20    // brighter haze, less colour saturation
+    );
+    this.scene.fog.density = 0.045 - skyG * 0.022;  // clears as canopy opens
+
+    // Ambient — warms to a golden-green with sky
     this._ambientLight.color.setHSL(
-      0.28 + skyG * 0.06,
-      0.35 + skyG * 0.2,
+      0.28 + skyG * 0.04,   // stays in warm green-yellow
+      0.35 + skyG * 0.15,
       0.12 + skyG * 0.35
     );
     this._ambientLight.intensity = 0.4 + skyG * 0.9;
 
-    // Sun — brightens and warms
+    // Sun — brightens and warms (warm yellow, not blue)
     this._sunLight.color.setHSL(
       0.13 + skyG * 0.02,
       0.4 + skyG * 0.3,
